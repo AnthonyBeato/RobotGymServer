@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 const authenticateToken = require('../middleware/authenticateToken');
+
 const dataController = require('../controllers/dataController');
 const simulationController = require('../controllers/simulationController');
 
@@ -17,5 +18,8 @@ router.post('/', authenticateToken, simulationController.createSimulation);
 
 // Ruta para obtener las simulaciones del usuario 
 router.get('/', authenticateToken, simulationController.getSimulationsByUser);
+
+router.post('/start', simulationController.startSimulation);
+router.post('/stop/:id', simulationController.stopSimulation);
 
 module.exports = router;

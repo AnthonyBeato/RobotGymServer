@@ -2,7 +2,8 @@ const AWS = require('aws-sdk');
 
 // Configurar credenciales y región
 AWS.config.update({
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     region: process.env.AWS_REGION
 });
+
+// Creamos un objeto RoboMaker configurado para la región deseada
+const roboMaker = new AWS.RoboMaker({apiVersion: '2018-06-29'});
