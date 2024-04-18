@@ -19,7 +19,5 @@ router.post('/', authenticateToken, simulationController.createSimulation);
 // Ruta para obtener las simulaciones del usuario 
 router.get('/', authenticateToken, simulationController.getSimulationsByUser);
 
-router.post('/start', simulationController.startSimulation);
-router.post('/stop/:id', simulationController.stopSimulation);
 
 module.exports = router;

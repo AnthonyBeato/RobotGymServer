@@ -6,4 +6,4 @@ AWS.config.update({
 });
 
 // Creamos un objeto RoboMaker configurado para la región deseada
-const roboMaker = new AWS.RoboMaker({apiVersion: '2018-06-29'});
+// const roboMaker = new AWS.RoboMaker({apiVersion: '2018-06-29'});

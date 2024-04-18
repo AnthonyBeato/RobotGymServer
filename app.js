@@ -10,7 +10,7 @@ var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var robotRouter = require('./routes/robots');
 var simulationRouter = require('./routes/simulations');
-var robomakerRouter = require('./routes/robomaker');
+var vncRouter = require('./routes/vnc');
 
 var app = express();
 
@@ -28,7 +28,7 @@ app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/robots', robotRouter);
 app.use('/simulations', simulationRouter);
-app.use('/robomaker', robomakerRouter);
+app.use('/api/vnc', vncRouter);
 
 // Middleware para parsear el cuerpo de las solicitudes
 app.use(express.json());
