@@ -1,6 +1,7 @@
-const User = require('../models/user');
+const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+
 
 exports.registerUser = async (req, res) => {
     try {
@@ -55,4 +56,14 @@ exports.loginUser = async (req, res) => {
 
 exports.logoutUser = (req, res) => {
     // TODO: Lógica para cerrar sesión
+};
+
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find;
+        res.status(200).json(users);
+    } catch (error) {
+        console.error('Failed to retrieve users:', error);
+        res.status(500).send({ message: 'Failed to retrieve users', error: error.toString() });
+    }
 };
