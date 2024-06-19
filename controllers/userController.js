@@ -5,8 +5,8 @@ const bcrypt = require('bcryptjs');
 
 exports.registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        if (!email || !name || !password) {
+        const { name, email, username, password } = req.body;
+        if (!email || !name || !username || !password) {
             return res.status(400).json({ message: 'Please provide all required fields' });
         }
 
@@ -15,7 +15,7 @@ exports.registerUser = async (req, res) => {
             return res.status(409).json({ message: 'Email already in use' });
         }
 
-        const user = new User({ name, email, password });
+        const user = new User({ name, username, email, password });
         await user.save();
 
         res.status(201).json({ message: 'User registered successfully' });
@@ -26,8 +26,8 @@ exports.registerUser = async (req, res) => {
 
 exports.loginUser = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
         if (!user) {
             return res.status(401).json({ message: 'Authentication failed' });
         }
@@ -39,9 +39,9 @@ exports.loginUser = async (req, res) => {
 
         // Usuario autenticado, crear token
         const token = jwt.sign(
-            { userId: user._id, email: user.email },
+            { userId: user._id, username: user.username },
             process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            { expiresIn: '6h' }
         );
 
         res.status(200).json({

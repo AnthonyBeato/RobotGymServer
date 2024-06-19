@@ -52,11 +52,11 @@ app.use(function(err, req, res, next) {
   res.render('error');
 });
 
-const mongoDBUri = process.env.MONGODB_URI;
+const mongoDBUri = process.env.MONGODB_URI || 4000;
 
 // Ejemplo de uso en la conexión a la base de datos
 const mongoose = require('mongoose');
-mongoose.connect(mongoDBUri, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(mongoDBUri)
   .then(() => console.log('MongoDB connected...'))
   .catch(err => console.log(err));
 
