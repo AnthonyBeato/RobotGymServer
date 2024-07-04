@@ -6,7 +6,15 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true },
-    // Agrega más atributos según sea necesario
+    role: {
+        type: String,
+        enum: ['Administrador', 'Profesor', 'Estudiante'],
+        default: 'Estudiante'
+    },
+    experiments: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Experiment'
+    }]
 });
 
 userSchema.pre('save', async function (next) {

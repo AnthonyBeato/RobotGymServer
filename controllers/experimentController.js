@@ -1,0 +1,90 @@
+// controllers/experimentController.js
+const Experiment = require('../models/Experiment');
+const mongoose = require('mongoose');
+
+// Crear experimento
+exports.createExperiment = async (req, res) => {
+    try {
+        const { name, description, robotsQuantity, user, isActive } = req.body;
+
+        if (!name || robotsQuantity === undefined || user === undefined || isActive === undefined) {
+            return res.status(400).json({ message: 'Please provide all required fields' });
+        }
+
+        const experiment = new Experiment({ name, description, robotsQuantity, user, isActive });
+        await experiment.save();
+
+        res.status(201).json({ message: 'Experiment created successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating experiment', error: error.message });
+    }
+};
+
+// Actualizar experimento
+exports.updateExperiment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, robotsQuantity, user, isActive } = req.body;
+
+        const experiment = await Experiment.findById(id);
+        if (!experiment) {
+            return res.status(404).json({ message: 'Experiment not found' });
+        }
+
+        experiment.name = name || experiment.name;
+        experiment.description = description || experiment.description;
+        experiment.robotsQuantity = robotsQuantity || experiment.robotsQuantity;
+        experiment.user = user || experiment.user;
+        experiment.isActive = isActive || experiment.isActive;
+
+        await experiment.save();
+
+        res.status(200).json({ message: 'Experiment updated successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating experiment', error: error.message });
+    }
+};
+
+// Leer experimentos
+exports.getExperiments = async (req, res) => {
+    try {
+        const experiments = await Experiment.find().populate('user');
+        res.status(200).json(experiments);
+    } catch (error) {
+        res.status(500).json({ message: 'Error retrieving experiments', error: error.message });
+    }
+};
+
+// Leer un experimento
+exports.getExperiment = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const experiment = await Experiment.findById(id);
+        res.status(200).json(experiment);
+    } catch (error) {
+        res.status(500).json({ message: 'Error retrieving experiment', error: error.message });
+    }
+};
+
+// Borrar experimento
+exports.deleteExperiment = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid experiment ID' });
+        }
+
+        const experiment = await Experiment.findById(id);
+        if (!experiment) {
+            return res.status(404).json({ message: 'Experiment not found' });
+        }
+
+        await Experiment.deleteOne({ _id: id });
+
+        res.status(200).json({ message: 'Experiment deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting experiment', error: error.message });
+    }
+};
