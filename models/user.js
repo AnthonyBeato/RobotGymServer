@@ -11,10 +11,15 @@ const userSchema = new mongoose.Schema({
         enum: ['Administrador', 'Profesor', 'Estudiante'],
         default: 'Estudiante'
     },
+    aprobationStatus: {
+        type: String,
+        enum: ['Aceptado', 'Pendiente', 'Rechazado'],
+        default: 'Pendiente'
+    },
     experiments: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Experiment'
-    }]
+    }],
 });
 
 userSchema.pre('save', async function (next) {

@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 
 exports.createUser = async (req, res) => {
     try {
-        const { name, email, username, password, role } = req.body;
-        if (!email || !name || !username || !password || !role) {
+        const { name, email, username, password, role, aprobationStatus } = req.body;
+        if (!email || !name || !username || !password || !role || !aprobationStatus) {
             return res.status(400).json({ message: 'Please provide all required fields' });
         }
 
@@ -14,7 +14,7 @@ exports.createUser = async (req, res) => {
             return res.status(409).json({ message: 'Email already in use' });
         }
 
-        const user = new User({ name, username, email, password, role, experiments: [] });
+        const user = new User({ name, username, email, password, role, experiments: [] , aprobationStatus });
         await user.save();
 
         res.status(201).json({ message: 'User created successfully' });
@@ -37,7 +37,7 @@ exports.loginUser = async (req, res) => {
         }
 
         const token = jwt.sign(
-            { userId: user._id, username: user.username, role: user.role },
+            { userId: user._id, username: user.username, role: user.role, aprobationStatus: user.aprobationStatus },
             process.env.JWT_SECRET,
             { expiresIn: '6h' }
         );
@@ -75,7 +75,7 @@ exports.getUserById = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
     try {
-        const { name, email, username, password, role, experiments } = req.body;
+        const { name, email, username, password, role, experiments, aprobationStatus } = req.body;
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -86,6 +86,7 @@ exports.updateUser = async (req, res) => {
         user.username = username || user.username;
         user.role = role || user.role;
         user.experiments = experiments || user.experiments;
+        user.aprobationStatus = aprobationStatus || user.aprobationStatus;
 
         if (password) {
             user.password = password;
