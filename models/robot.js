@@ -1,13 +1,17 @@
 const mongoose = require('mongoose');
 
 const robotSchema = new mongoose.Schema({
-    model: String,
+    model: { type: String, required: true },
     status: {
         type: String,
-        enum: ['disponible', 'ocupado', 'mantenimiento'],
-        default: 'disponible'
+        robotStatus: ['Disponible', 'En Uso', 'Mantenimiento'],
+        default: 'Disponible'
     },
-    // Otros atributos necesarios para tu robot
+    experiment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Experiment',
+        default: null
+    },
 });
 
 const Robot = mongoose.model('Robot', robotSchema);

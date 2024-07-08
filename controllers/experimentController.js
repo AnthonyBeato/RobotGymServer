@@ -101,3 +101,67 @@ exports.deleteExperiment = async (req, res) => {
         res.status(500).json({ message: 'Error deleting experiment', error: error.message });
     }
 };
+
+// Iniciar experimento
+exports.startExperiment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { robotsQuantity } = req.body;
+
+        const experiment = await Experiment.findById(id);
+        if (!experiment) {
+            return res.status(404).json({ message: 'Experiment not found' });
+        }
+
+        if (experiment.isActive) {
+            return res.status(400).json({ message: 'Experiment is already active' });
+        }
+
+        // Buscar robots disponibles
+        const availableRobots = await Robot.find({ status: 'Disponible' }).limit(robotsQuantity);
+        if (availableRobots.length < robotsQuantity) {
+            return res.status(400).json({ message: 'Not enough available robots' });
+        }
+
+        // Reservar robots
+        const robotIds = availableRobots.map(robot => robot._id);
+        await Robot.updateMany({ _id: { $in: robotIds } }, { status: 'En Uso', experiment: id });
+
+        // Actualizar experimento 
+        experiment.isActive = true;
+        experiment.robots = robotIds;
+        await experiment.save();
+
+        res.status(200).json({ message: 'Experiment started successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating experiment', error: error.message });
+    }
+};
+
+// Detener experimento
+exports.stopExperiment = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const experiment = await Experiment.findById(id);
+        if (!experiment) {
+            return res.status(404).json({ message: 'Experiment not found' });
+        }
+
+        if (!experiment.isActive) {
+            return res.status(400).json({ message: 'Experiment is not active' });
+        }
+
+        // Liberar robots
+        await Robot.updateMany({ experiment: id }, { status: 'Disponible', experiment: null });
+
+        // Actualizar experimento
+        experiment.isActive = false;
+        experiment.robots = [];
+        await experiment.save();
+
+        res.status(200).json({ message: 'Experiment stopped successfully', experiment });
+    } catch (error) {
+        res.status(500).json({ message: 'Error stopping experiment', error: error.message });
+    }
+};

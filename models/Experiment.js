@@ -10,17 +10,18 @@ const experimentSchema = new mongoose.Schema({
     description: {
         type: String,
     },
-    robotsQuantity: {
-        type: Number,
-        required: true,
-    },
+    robots: [{ 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Robot' 
+    }],
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        required: true
     },
     isActive: {
         type: Boolean,
-        required: true,
+        default: false,
     }
 });
 

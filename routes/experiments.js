@@ -19,4 +19,10 @@ router.get('/:id', passport.authenticate('jwt', {session: false}) , experimentCo
 // Borrar experimento
 router.delete('/delete-experiment/:id', passport.authenticate('jwt', {session: false}) , experimentController.deleteExperiment);
 
+// Iniciar experimento
+router.post('/start-experiment/:id', passport.authenticate('jwt', {session: false}), experimentController.startExperiment);
+
+// Terminar experimento
+router.post('/stop-experiment/:id', passport.authenticate('jwt', {session: false}), experimentController.startExperiment);
+
 module.exports = router;
