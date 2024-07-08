@@ -1,20 +1,33 @@
 // controllers/experimentController.js
 const Experiment = require('../models/Experiment');
+const User = require('../models/user');
 const mongoose = require('mongoose');
 
 // Crear experimento
 exports.createExperiment = async (req, res) => {
     try {
-        const { name, description, robotsQuantity, user, isActive } = req.body;
+        const { name, description, robotsQuantity, isActive } = req.body;
 
-        if (!name || robotsQuantity === undefined || user === undefined || isActive === undefined) {
+        if (!name || robotsQuantity === undefined || isActive === undefined) {
             return res.status(400).json({ message: 'Please provide all required fields' });
         }
 
-        const experiment = new Experiment({ name, description, robotsQuantity, user, isActive });
+        // Obteniendo el ID del usuario desde el token JWT
+        const userId = req.user._id;
+
+        const experiment = new Experiment({ name, description, robotsQuantity, user: userId, isActive });
         await experiment.save();
 
-        res.status(201).json({ message: 'Experiment created successfully' });
+        // Vincular el experimento al usuario
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.experiments.push(experiment._id);
+        await user.save();
+
+        res.status(201).json({ message: 'Experiment created successfully', experiment });
     } catch (error) {
         res.status(500).json({ message: 'Error creating experiment', error: error.message });
     }

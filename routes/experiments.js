@@ -1,21 +1,22 @@
 var express = require('express');
 var router = express.Router();
+const passport = require('passport');
 
 const experimentController = require('../controllers/experimentController');
 
 // Crear experimento
-router.post('/create-experiment', experimentController.createExperiment);
+router.post('/create-experiment', passport.authenticate('jwt', {session: false}), experimentController.createExperiment);
 
 // Actualizar experimento
-router.put('/update-experiment/:id', experimentController.updateExperiment);
+router.put('/update-experiment/:id', passport.authenticate('jwt', {session: false}), experimentController.updateExperiment);
 
 // Leer experimentos
-router.get('/', experimentController.getExperiments);
+router.get('/', passport.authenticate('jwt', {session: false}) , experimentController.getExperiments);
 
 // Leer un experimento
-router.get('/:id', experimentController.getExperiment);
+router.get('/:id', passport.authenticate('jwt', {session: false}) , experimentController.getExperiment);
 
 // Borrar experimento
-router.delete('/delete-experiment/:id', experimentController.deleteExperiment);
+router.delete('/delete-experiment/:id', passport.authenticate('jwt', {session: false}) , experimentController.deleteExperiment);
 
 module.exports = router;
