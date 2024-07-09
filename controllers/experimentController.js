@@ -1,21 +1,21 @@
-// controllers/experimentController.js
 const Experiment = require('../models/Experiment');
 const User = require('../models/user');
+const Robot = require('../models/robot');
 const mongoose = require('mongoose');
 
 // Crear experimento
 exports.createExperiment = async (req, res) => {
     try {
-        const { name, description, robotsQuantity, isActive } = req.body;
+        const { name, description } = req.body;
 
-        if (!name || robotsQuantity === undefined || isActive === undefined) {
+        if (!name) {
             return res.status(400).json({ message: 'Please provide all required fields' });
         }
 
         // Obteniendo el ID del usuario desde el token JWT
         const userId = req.user._id;
 
-        const experiment = new Experiment({ name, description, robotsQuantity, user: userId, isActive });
+        const experiment = new Experiment({ name, description, user: userId });
         await experiment.save();
 
         // Vincular el experimento al usuario
@@ -37,7 +37,7 @@ exports.createExperiment = async (req, res) => {
 exports.updateExperiment = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, robotsQuantity, user, isActive } = req.body;
+        const { name, description, user, isActive } = req.body;
 
         const experiment = await Experiment.findById(id);
         if (!experiment) {
@@ -46,7 +46,6 @@ exports.updateExperiment = async (req, res) => {
 
         experiment.name = name || experiment.name;
         experiment.description = description || experiment.description;
-        experiment.robotsQuantity = robotsQuantity || experiment.robotsQuantity;
         experiment.user = user || experiment.user;
         experiment.isActive = isActive || experiment.isActive;
 
@@ -132,9 +131,9 @@ exports.startExperiment = async (req, res) => {
         experiment.robots = robotIds;
         await experiment.save();
 
-        res.status(200).json({ message: 'Experiment started successfully' });
+        res.status(200).json({ message: 'Experiment started successfully', experiment });
     } catch (error) {
-        res.status(500).json({ message: 'Error updating experiment', error: error.message });
+        res.status(500).json({ message: 'Error starting experiment', error: error.message });
     }
 };
 
@@ -163,5 +162,25 @@ exports.stopExperiment = async (req, res) => {
         res.status(200).json({ message: 'Experiment stopped successfully', experiment });
     } catch (error) {
         res.status(500).json({ message: 'Error stopping experiment', error: error.message });
+    }
+};
+
+// Obtener experimentos del usuario
+exports.getUserExperiments = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Invalid user ID' });
+        }
+
+        const experiments = await Experiment.find({ user: userId }).populate('user');
+        if (!experiments) {
+            return res.status(404).json({ message: 'No experiments found for this user' });
+        }
+
+        res.status(200).json(experiments);
+    } catch (error) {
+        res.status(500).json({ message: 'Error retrieving user experiments', error: error.message });
     }
 };

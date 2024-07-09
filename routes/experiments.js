@@ -25,4 +25,7 @@ router.post('/start-experiment/:id', passport.authenticate('jwt', {session: fals
 // Terminar experimento
 router.post('/stop-experiment/:id', passport.authenticate('jwt', {session: false}), experimentController.startExperiment);
 
+// Obtener experimentos del usuario
+router.get('/user/:id', passport.authenticate('jwt', { session: false }), experimentController.getUserExperiments);
+
 module.exports = router;
