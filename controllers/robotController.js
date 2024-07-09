@@ -1,5 +1,7 @@
 const Robot = require('../models/robot');
 const Experiment = require('../models/Experiment');
+const mongoose = require('mongoose');
+
 
 // Obtener todos los robots
 exports.getAllRobots = async (req, res) => {
@@ -11,15 +13,27 @@ exports.getAllRobots = async (req, res) => {
     }
 };
 
+// Obtener un solo robot especifico
+exports.getRobot = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const robot = await Robot.findById(id);
+        res.status(200).json(robot);
+    } catch (error) {
+        res.status(500).json({ message: 'Error retrieving robot', error: error.message });
+    }
+};
+
 // Obtener el estado de un robot específico
 exports.getRobotStatus = async (req, res) => {
     try {
-        const { robotId } = req.params;
-        const robot = await Robot.findById(robotId);
+        const { id } = req.params;
+        const robot = await Robot.findById(id);
         if (!robot) {
             return res.status(404).json({ message: 'Robot not found' });
         }
-        res.status(200).json({ status: robot.status });
+        res.status(200).json({ statusUse: robot.statusUse });
     } catch (error) {
         res.status(500).json({ message: 'Error retrieving robot status', error: error.message });
     }
@@ -28,15 +42,15 @@ exports.getRobotStatus = async (req, res) => {
 // Actualizar el estado de un robot
 exports.updateRobotStatus = async (req, res) => {
     try {
-        const { robotId } = req.params;
-        const { status } = req.body;
+        const { id } = req.params;
+        const { statusUse } = req.body;
 
-        const robot = await Robot.findById(robotId);
+        const robot = await Robot.findById(id);
         if (!robot) {
             return res.status(404).json({ message: 'Robot not found' });
         }
 
-        robot.status = status || robot.status;
+        robot.statusUse = statusUse || robot.statusUse;
         await robot.save();
 
         res.status(200).json({ message: 'Robot status updated successfully' });
@@ -59,13 +73,13 @@ exports.reserveRobots = async (req, res) => {
             return res.status(400).json({ message: 'Experiment is already active' });
         }
 
-        const availableRobots = await Robot.find({ status: 'Disponible' }).limit(robotsQuantity);
+        const availableRobots = await Robot.find({ statusUse: 'Disponible' }).limit(robotsQuantity);
         if (availableRobots.length < robotsQuantity) {
             return res.status(400).json({ message: 'Not enough available robots' });
         }
 
         const robotIds = availableRobots.map(robot => robot._id);
-        await Robot.updateMany({ _id: { $in: robotIds } }, { status: 'En Uso', experiment: experimentId });
+        await Robot.updateMany({ _id: { $in: robotIds } }, { statusUse: 'En Uso', experiment: experimentId });
 
         experiment.isActive = true;
         experiment.robots = robotIds;
@@ -80,13 +94,13 @@ exports.reserveRobots = async (req, res) => {
 // Crear un robot
 exports.createRobot = async (req, res) => {
     try {
-        const { model, status } = req.body;
+        const { model, statusUse } = req.body;
 
         if (!model) {
             return res.status(400).json({ message: 'Model is required' });
         }
 
-        const robot = new Robot({ model, status });
+        const robot = new Robot({ model, statusUse });
         await robot.save();
 
         res.status(201).json({ message: 'Robot created successfully', robot });
@@ -98,16 +112,16 @@ exports.createRobot = async (req, res) => {
 // Editar un robot
 exports.updateRobot = async (req, res) => {
     try {
-        const { robotId } = req.params;
-        const { model, status } = req.body;
+        const { id } = req.params;
+        const { model, statusUse } = req.body;
 
-        const robot = await Robot.findById(robotId);
+        const robot = await Robot.findById(id);
         if (!robot) {
             return res.status(404).json({ message: 'Robot not found' });
         }
 
         robot.model = model || robot.model;
-        robot.status = status || robot.status;
+        robot.statusUse = statusUse || robot.statusUse;
         await robot.save();
 
         res.status(200).json({ message: 'Robot updated successfully', robot });
@@ -119,18 +133,18 @@ exports.updateRobot = async (req, res) => {
 // Eliminar un robot
 exports.deleteRobot = async (req, res) => {
     try {
-        const { robotId } = req.params;
+        const { id } = req.params;
 
-        if (!mongoose.Types.ObjectId.isValid(robotId)) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: 'Invalid robot ID' });
         }
 
-        const robot = await Robot.findById(robotId);
+        const robot = await Robot.findById(id);
         if (!robot) {
             return res.status(404).json({ message: 'Robot not found' });
         }
 
-        await Robot.deleteOne({ _id: robotId });
+        await Robot.deleteOne({ _id: id });
 
         res.status(200).json({ message: 'Robot deleted successfully' });
     } catch (error) {

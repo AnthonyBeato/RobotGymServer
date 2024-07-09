@@ -2,9 +2,9 @@ const mongoose = require('mongoose');
 
 const robotSchema = new mongoose.Schema({
     model: { type: String, required: true },
-    status: {
+    statusUse: {
         type: String,
-        robotStatus: ['Disponible', 'En Uso', 'Mantenimiento'],
+        enum: ['Disponible', 'En Uso', 'Mantenimiento'],
         default: 'Disponible'
     },
     experiment: {
