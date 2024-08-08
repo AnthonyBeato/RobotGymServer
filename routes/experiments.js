@@ -23,7 +23,7 @@ router.delete('/delete-experiment/:id', passport.authenticate('jwt', {session: f
 router.post('/start-experiment/:id', passport.authenticate('jwt', {session: false}), experimentController.startExperiment);
 
 // Terminar experimento
-router.post('/stop-experiment/:id', passport.authenticate('jwt', {session: false}), experimentController.startExperiment);
+router.post('/stop-experiment/:id', passport.authenticate('jwt', {session: false}), experimentController.stopExperiment);
 
 // Obtener experimentos del usuario
 router.get('/user/:id', passport.authenticate('jwt', { session: false }), experimentController.getUserExperiments);

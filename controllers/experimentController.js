@@ -107,35 +107,46 @@ exports.startExperiment = async (req, res) => {
         const { id } = req.params;
         const { robotsQuantity } = req.body;
 
+        console.log(`Iniciando experimento con ID: ${id}`);
+        console.log(`Cantidad de robots solicitados: ${robotsQuantity}`);
+
         const experiment = await Experiment.findById(id);
         if (!experiment) {
+            console.log('Experimento no encontrado');
             return res.status(404).json({ message: 'Experiment not found' });
         }
 
         if (experiment.isActive) {
+            console.log('El experimento ya está activo');
             return res.status(400).json({ message: 'Experiment is already active' });
         }
 
         // Buscar robots disponibles
-        const availableRobots = await Robot.find({ status: 'Disponible' }).limit(robotsQuantity);
+        const availableRobots = await Robot.find({ statusUse: 'Disponible' });
+        console.log('Robots disponibles encontrados:', availableRobots);
+
         if (availableRobots.length < robotsQuantity) {
+            console.log('No hay suficientes robots disponibles');
             return res.status(400).json({ message: 'Not enough available robots' });
         }
 
         // Reservar robots
-        const robotIds = availableRobots.map(robot => robot._id);
-        await Robot.updateMany({ _id: { $in: robotIds } }, { status: 'En Uso', experiment: id });
+        const robotIds = availableRobots.slice(0, robotsQuantity).map(robot => robot._id);
+        await Robot.updateMany({ _id: { $in: robotIds } }, { statusUse: 'En Uso', experiment: id });
 
         // Actualizar experimento 
         experiment.isActive = true;
         experiment.robots = robotIds;
         await experiment.save();
 
+        console.log('Experimento iniciado exitosamente');
         res.status(200).json({ message: 'Experiment started successfully', experiment });
     } catch (error) {
+        console.error('Error iniciando el experimento:', error.message);
         res.status(500).json({ message: 'Error starting experiment', error: error.message });
     }
 };
+
 
 // Detener experimento
 exports.stopExperiment = async (req, res) => {
@@ -152,7 +163,7 @@ exports.stopExperiment = async (req, res) => {
         }
 
         // Liberar robots
-        await Robot.updateMany({ experiment: id }, { status: 'Disponible', experiment: null });
+        await Robot.updateMany({ experiment: id }, { statusUse: 'Disponible', experiment: null });
 
         // Actualizar experimento
         experiment.isActive = false;
