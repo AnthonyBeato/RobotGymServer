@@ -13,6 +13,16 @@ exports.getAllRobots = async (req, res) => {
     }
 };
 
+// Obtener todos los robots disponibles
+exports.getAllAvailableRobots = async () => {
+    try {
+        const robots = await Robot.find({ statusUse: 'Disponible' });
+        return robots;
+    } catch (error) {
+        throw new Error('Error retrieving robots: ' + error.message);
+    }
+};
+
 // Obtener un solo robot especifico
 exports.getRobot = async (req, res) => {
     try {
@@ -59,35 +69,21 @@ exports.updateRobotStatus = async (req, res) => {
     }
 };
 
-// Reservar robots para un experimento
-exports.reserveRobots = async (req, res) => {
+// Funcion para reservar robots para un experimento
+exports.reserveRobots = async (experimentId) => {
     try {
-        const { experimentId, robotsQuantity } = req.body;
+        // Conseguir todos los robots disponibles
+        const availableRobots = await this.getAllAvailableRobots();
 
-        const experiment = await Experiment.findById(experimentId);
-        if (!experiment) {
-            return res.status(404).json({ message: 'Experiment not found' });
-        }
-
-        if (experiment.isActive) {
-            return res.status(400).json({ message: 'Experiment is already active' });
-        }
-
-        const availableRobots = await Robot.find({ statusUse: 'Disponible' }).limit(robotsQuantity);
-        if (availableRobots.length < robotsQuantity) {
-            return res.status(400).json({ message: 'Not enough available robots' });
-        }
-
+        // Seleccionar los robots necesarios
         const robotIds = availableRobots.map(robot => robot._id);
+
+        // Poner cada robot en estado "En Uso" 
         await Robot.updateMany({ _id: { $in: robotIds } }, { statusUse: 'En Uso', experiment: experimentId });
 
-        experiment.isActive = true;
-        experiment.robots = robotIds;
-        await experiment.save();
-
-        res.status(200).json({ message: 'Robots reserved successfully', experiment });
+        return robotIds;
     } catch (error) {
-        res.status(500).json({ message: 'Error reserving robots', error: error.message });
+        throw new Error('Error retrieving robots: ' + error.message);
     }
 };
 

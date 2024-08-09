@@ -15,9 +15,6 @@ router.get('/:id/status', passport.authenticate('jwt', {session: false}), robotC
 // Ruta para actualizar el estado de un robot
 router.put('/:id/status', passport.authenticate('jwt', {session: false}), robotController.updateRobotStatus);
 
-// Ruta para reservar robots para un experimento
-router.post('/reserve', passport.authenticate('jwt', {session: false}), robotController.reserveRobots);
-
 // Ruta para crear un robot
 router.post('/create-robot', passport.authenticate('jwt', {session: false}), robotController.createRobot);
 

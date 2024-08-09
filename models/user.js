@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const Experiment = require('./Experiment');
 
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -20,6 +21,15 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Experiment'
     }],
+});
+
+userSchema.pre('remove', async function (next) {
+    try {
+        await Experiment.deleteMany({ _id: { $in: this.experiments } });
+        next();
+    } catch (error) {
+        next(error);
+    }
 });
 
 userSchema.pre('save', async function (next) {

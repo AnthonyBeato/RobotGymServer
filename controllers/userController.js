@@ -1,6 +1,8 @@
 const User = require('../models/user')
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
+const Experiment = require('../models/Experiment');
 
 exports.createUser = async (req, res) => {
     try {
@@ -75,8 +77,10 @@ exports.getUserById = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
     try {
-        const { name, email, username, password, role, experiments, aprobationStatus } = req.body;
-        const user = await User.findById(req.params.id);
+        const { id } = req.params;
+        const { name, email, username, role, experiments, aprobationStatus } = req.body;
+
+        const user = await User.findById(id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -88,11 +92,8 @@ exports.updateUser = async (req, res) => {
         user.experiments = experiments || user.experiments;
         user.aprobationStatus = aprobationStatus || user.aprobationStatus;
 
-        if (password) {
-            user.password = password;
-        }
-
         await user.save();
+
         res.status(200).json({ message: 'User updated successfully', user });
     } catch (error) {
         res.status(500).json({ message: 'Error updating user', error: error.message });
@@ -101,14 +102,26 @@ exports.updateUser = async (req, res) => {
 
 exports.deleteUser = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid user ID' });
+        }
+
+        const user = await User.findById(id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        await user.remove();
-        res.status(200).json({ message: 'User deleted successfully' });
+        // Eliminar todos los experimentos asociados
+        await Experiment.deleteMany({ _id: { $in: user.experiments } });
+
+        // Luego eliminar el usuario
+        await User.deleteOne({ _id: id });
+
+        res.status(200).json({ message: 'User and associated experiments deleted successfully' });
     } catch (error) {
+        console.error('Error during user deletion:', error); // Añadir logs detallados
         res.status(500).json({ message: 'Error deleting user', error: error.message });
     }
 };

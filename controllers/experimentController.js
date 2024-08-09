@@ -2,6 +2,8 @@ const Experiment = require('../models/Experiment');
 const User = require('../models/user');
 const Robot = require('../models/robot');
 const mongoose = require('mongoose');
+const robotController = require('../controllers/robotController');
+
 
 // Crear experimento
 exports.createExperiment = async (req, res) => {
@@ -101,14 +103,13 @@ exports.deleteExperiment = async (req, res) => {
     }
 };
 
+
 // Iniciar experimento
 exports.startExperiment = async (req, res) => {
     try {
         const { id } = req.params;
-        const { robotsQuantity } = req.body;
 
         console.log(`Iniciando experimento con ID: ${id}`);
-        console.log(`Cantidad de robots solicitados: ${robotsQuantity}`);
 
         const experiment = await Experiment.findById(id);
         if (!experiment) {
@@ -122,19 +123,13 @@ exports.startExperiment = async (req, res) => {
         }
 
         // Buscar robots disponibles
-        const availableRobots = await Robot.find({ statusUse: 'Disponible' });
-        console.log('Robots disponibles encontrados:', availableRobots);
+        const robotIds = await robotController.reserveRobots(id);
 
-        if (availableRobots.length < robotsQuantity) {
-            console.log('No hay suficientes robots disponibles');
-            return res.status(400).json({ message: 'Not enough available robots' });
+        if (robotIds.length === 0 ){
+            return res.status(400).json({ message: 'No hay robots disponibles para el experimento' });
         }
 
-        // Reservar robots
-        const robotIds = availableRobots.slice(0, robotsQuantity).map(robot => robot._id);
-        await Robot.updateMany({ _id: { $in: robotIds } }, { statusUse: 'En Uso', experiment: id });
-
-        // Actualizar experimento 
+        // Actualizar el experimento para reflejar que está activo y asignarle los robots
         experiment.isActive = true;
         experiment.robots = robotIds;
         await experiment.save();
