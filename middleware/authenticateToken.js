@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+import { verify } from 'jsonwebtoken';
 
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -6,7 +6,7 @@ function authenticateToken(req, res, next) {
 
     if (token == null) return res.status(401).send({ message: 'No token provided' });
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) return res.status(403).send({ message: 'Invalid token' });
 
         req.user = user;
@@ -14,4 +14,4 @@ function authenticateToken(req, res, next) {
     });
 }
 
-module.exports = authenticateToken;
+export default authenticateToken;
