@@ -7,6 +7,8 @@ const robotSchema = new mongoose.Schema({
         enum: ['Disponible', 'En Uso', 'Mantenimiento'],
         default: 'Disponible'
     },
+    ip: { type: String, required: true },  
+    hostname: { type: String, required: true },  
     experiment: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Experiment',

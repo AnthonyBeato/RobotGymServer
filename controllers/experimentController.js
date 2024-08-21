@@ -2,8 +2,9 @@ const Experiment = require('../models/Experiment');
 const User = require('../models/user');
 const Robot = require('../models/robot');
 const mongoose = require('mongoose');
-const robotController = require('../controllers/robotController');
-
+const execSshCommand = require('./helpers/execSshCommand');
+// const fs = require('fs');
+const path = require('path');
 
 // Crear experimento
 exports.createExperiment = async (req, res) => {
@@ -103,17 +104,17 @@ exports.deleteExperiment = async (req, res) => {
     }
 };
 
-
 // Iniciar experimento
 exports.startExperiment = async (req, res) => {
     try {
         const { id } = req.params;
 
-        console.log(`Iniciando experimento con ID: ${id}`);
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid experiment ID' });
+        }
 
         const experiment = await Experiment.findById(id);
         if (!experiment) {
-            console.log('Experimento no encontrado');
             return res.status(404).json({ message: 'Experiment not found' });
         }
 
@@ -122,25 +123,72 @@ exports.startExperiment = async (req, res) => {
             return res.status(400).json({ message: 'Experiment is already active' });
         }
 
-        // Buscar robots disponibles
-        const robotIds = await robotController.reserveRobots(id);
+        // Verificar la disponibilidad real de los robots
+        // await stopManualControl();
+        const availableRobots = await runManualControl();
 
-        if (robotIds.length === 0 ){
-            return res.status(400).json({ message: 'No hay robots disponibles para el experimento' });
+        if (availableRobots.length === 0 ){
+            return res.status(400).json({ message: 'They arent any robots available for the experiment' });
         }
 
         // Actualizar el experimento para reflejar que está activo y asignarle los robots
         experiment.isActive = true;
-        experiment.robots = robotIds;
+        experiment.robots = availableRobots;
         await experiment.save();
 
         console.log('Experimento iniciado exitosamente');
         res.status(200).json({ message: 'Experiment started successfully', experiment });
     } catch (error) {
-        console.error('Error iniciando el experimento:', error.message);
         res.status(500).json({ message: 'Error starting experiment', error: error.message });
     }
 };
+
+async function runManualControl() {
+    const availableRobots = [];
+    const robots = await Robot.find({ statusUse: 'Disponible' });
+
+    const privateKeyPath  = path.join(process.env.HOME, '.ssh', 'id_rsa');
+
+    const robotPromises = robots.map(robot => {
+        return (async () => {
+            try {
+                console.log(`Iniciando el chequeo de salud para ${robot.model} en ${robot.ip}`);
+
+                // Inicia los nodos de heartbeat y diagnostics en segundo plano
+                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 run health_check_pkg heartbeat_publisher_node > ~/heartbeat.log 2>&1 & echo $! > ~/heartbeat.pid');
+                console.log("heartbeat loaded");
+
+                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 run health_check_pkg diagnostics_publisher_node > ~/diagnostics.log 2>&1 & echo $! > ~/diagnostics.pid');
+                console.log("diagnostics loaded");
+
+                // Start rosbridge and capture all related PIDs
+                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 launch rosbridge_server rosbridge_websocket_launch.xml > ~/rosbridge.log 2>&1 & echo $! > ~/rosbridge.pid');
+                execSshCommand(robot.ip, 'robot', privateKeyPath, 'pgrep -P $(cat ~/rosbridge.pid) > ~/rosbridge_children.pids');
+                console.log("rosbridge loaded");
+
+                // Start diffbot and capture all related PIDs
+                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 launch diffdrive_msp432 diffbot.launch.py > ~/diffbot.log 2>&1 & echo $! > ~/diffbot.pid');
+                console.log("diffbot loaded");
+
+                // Agregar el robot a la lista de disponibles si todo fue bien
+                availableRobots.push(robot._id);
+
+                //TODO: actualizar el estado del robot de Disponible a En Uso
+
+            } catch (error) {
+                console.error(`Error configurando el robot ${robot.model} (${robot.ip}):`, error);
+                // Cambia el estado del robot a "Mantenimiento" si no responde
+                await Robot.updateOne({ _id: robot._id }, { statusUse: 'Mantenimiento' });
+            }
+        })();
+    });
+
+    await Promise.all(robotPromises);
+
+    console.log('Robots disponibles:', availableRobots);
+
+    return availableRobots;
+}
 
 
 // Detener experimento
@@ -148,7 +196,7 @@ exports.stopExperiment = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const experiment = await Experiment.findById(id);
+        const experiment = await Experiment.findById(id).populate('robots');
         if (!experiment) {
             return res.status(404).json({ message: 'Experiment not found' });
         }
@@ -157,10 +205,28 @@ exports.stopExperiment = async (req, res) => {
             return res.status(400).json({ message: 'Experiment is not active' });
         }
 
-        // Liberar robots
+        const privateKeyPath = path.join(process.env.HOME, '.ssh', 'id_rsa');
+
+        const stopCommands = [
+            'kill -9 $(cat ~/heartbeat.pid)',
+            'kill -9 $(cat ~/diagnostics.pid)',
+            'kill -9 $(cat ~/rosbridge.pid)',
+            'kill -9 $(cat ~/diffbot.pid)',
+            'kill -9 $(cat ~/rosbridge_children.pids)',
+        ];
+
+        const stopPromises = experiment.robots.map(robot => {
+            return Promise.all(stopCommands.map(cmd => 
+                execSshCommand(robot.ip, 'robot', privateKeyPath, cmd)
+                .then(() => console.log(`Stopped process on ${robot.model} (${robot.ip})`))
+                .catch(err => console.error(`Error stopping process on ${robot.model} (${robot.ip}):`, err))
+            ));
+        });
+
+        await Promise.all(stopPromises);
+
         await Robot.updateMany({ experiment: id }, { statusUse: 'Disponible', experiment: null });
 
-        // Actualizar experimento
         experiment.isActive = false;
         experiment.robots = [];
         await experiment.save();
@@ -170,6 +236,7 @@ exports.stopExperiment = async (req, res) => {
         res.status(500).json({ message: 'Error stopping experiment', error: error.message });
     }
 };
+
 
 // Obtener experimentos del usuario
 exports.getUserExperiments = async (req, res) => {
@@ -188,5 +255,26 @@ exports.getUserExperiments = async (req, res) => {
         res.status(200).json(experiments);
     } catch (error) {
         res.status(500).json({ message: 'Error retrieving user experiments', error: error.message });
+    }
+};
+
+exports.getExperimentRobots = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid experiment ID' });
+        }
+
+        const experiment = await Experiment.findById(id).populate('robots');
+
+        if (!experiment) {
+            return res.status(404).json({ message: 'Experiment not found' });
+        }
+
+        res.status(200).json(experiment.robots);
+    } catch (error) {
+        console.error('Error retrieving robots:', error);
+        res.status(500).json({ message: 'Error retrieving robots', error: error.message });
     }
 };

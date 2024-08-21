@@ -89,13 +89,13 @@ exports.reserveRobots = async (experimentId) => {
 // Crear un robot
 exports.createRobot = async (req, res) => {
     try {
-        const { model, statusUse } = req.body;
+        const { model, statusUse, ip, hostname } = req.body;
 
         if (!model) {
             return res.status(400).json({ message: 'Model is required' });
         }
 
-        const robot = new Robot({ model, statusUse });
+        const robot = new Robot({ model, statusUse, ip, hostname });
         await robot.save();
 
         res.status(201).json({ message: 'Robot created successfully', robot });
@@ -108,7 +108,7 @@ exports.createRobot = async (req, res) => {
 exports.updateRobot = async (req, res) => {
     try {
         const { id } = req.params;
-        const { model, statusUse } = req.body;
+        const { model, statusUse, ip, hostname } = req.body;
 
         const robot = await Robot.findById(id);
         if (!robot) {
@@ -117,6 +117,8 @@ exports.updateRobot = async (req, res) => {
 
         robot.model = model || robot.model;
         robot.statusUse = statusUse || robot.statusUse;
+        robot.ip = ip || robot.ip;
+        robot.hostname = hostname || robot.hostname;
         await robot.save();
 
         res.status(200).json({ message: 'Robot updated successfully', robot });
