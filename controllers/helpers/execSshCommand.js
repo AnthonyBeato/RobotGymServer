@@ -5,9 +5,9 @@ const execSshCommand = (host, username, privateKeyPath, command, rosWorkspaceNam
         const sshCommand = `ssh -i ${privateKeyPath} ${username}@${host} "source /opt/ros/humble/setup.bash && source /home/${username}/${rosWorkspaceName}/install/setup.bash && ${command}"`;
         exec(sshCommand, (error, stdout, stderr) => {
             if (error) {
-                reject(stderr);
+                return reject(new Error(stderr.trim() || 'Error executing SSH command'));
             } else {
-                resolve(stdout);
+                resolve(stdout.trim());
             }
         });
     });

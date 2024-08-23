@@ -13,6 +13,7 @@ var usersRouter = require('./routes/users');
 var robotRouter = require('./routes/robots');
 var experimentRouter = require('./routes/experiments')
 var routineRouter = require('./routes/routines')
+var queueRouter = require('./routes/queue')
 
 var app = express();
 // Configura CORS para permitir solicitudes desde http://localhost:5173
@@ -38,7 +39,7 @@ app.use('/users', usersRouter);
 app.use('/robots', robotRouter);
 app.use('/experiments', experimentRouter)
 app.use('/routines', routineRouter)
-
+app.use('/queue', queueRouter)
 
 // Middleware para parsear el cuerpo de las solicitudes
 app.use(express.json());

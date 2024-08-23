@@ -114,33 +114,41 @@ exports.startExperiment = async (req, res) => {
             return res.status(400).json({ message: 'Invalid experiment ID' });
         }
 
+        // Verificar si ya hay un experimento en ejecución
+        const activeExperiment = await Experiment.findOne({ isActive: true });
+        if (activeExperiment) {
+            return res.status(400).json({ message: 'An experiment is already running. Please stop the current experiment before starting a new one.' });
+        }
+
         const experiment = await Experiment.findById(id);
         if (!experiment) {
             return res.status(404).json({ message: 'Experiment not found' });
         }
 
         if (experiment.isActive) {
-            console.log('El experimento ya está activo');
             return res.status(400).json({ message: 'Experiment is already active' });
         }
 
         // Verificar la disponibilidad real de los robots
-        // await stopManualControl();
-        const availableRobots = await runManualControl();
+        try{
+            const availableRobots = await runManualControl();
 
-        if (availableRobots.length === 0 ){
-            return res.status(400).json({ message: 'They arent any robots available for the experiment' });
+            if (availableRobots.length === 0 ){
+                return res.status(400).json({ message: 'They arent any robots available for the experiment' });
+            }
+            // Actualizar el experimento para reflejar que está activo y asignarle los robots
+            experiment.isActive = true;
+            experiment.robots = availableRobots;
+            await experiment.save();
+    
+            await robotController.reserveRobots(experiment._id);
+    
+            console.log('Experiment started successfully');
+            res.status(200).json({ message: 'Experiment started successfully', experiment });
+
+        } catch (runError){
+            return res.status(500).json({ message: 'Error starting experiment', error: runError.message });
         }
-
-        // Actualizar el experimento para reflejar que está activo y asignarle los robots
-        experiment.isActive = true;
-        experiment.robots = availableRobots;
-        await experiment.save();
-
-        await robotController.reserveRobots(experiment._id);
-
-        console.log('Experimento iniciado exitosamente');
-        res.status(200).json({ message: 'Experiment started successfully', experiment });
     } catch (error) {
         res.status(500).json({ message: 'Error starting experiment', error: error.message });
     }
@@ -152,41 +160,47 @@ async function runManualControl() {
 
     const privateKeyPath  = path.join(process.env.HOME, '.ssh', 'id_rsa');
 
-    const robotPromises = robots.map(robot => {
-        return (async () => {
-            try {
-                console.log(`Iniciando el chequeo de salud para ${robot.model} en ${robot.ip}`);
+    const robotPromises = robots.map(async (robot) => {
+        try {
+            console.log(`Iniciando el chequeo de salud para ${robot.model} en ${robot.ip}`);
 
-                // Inicia los nodos de heartbeat y diagnostics en segundo plano
-                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 run health_check_pkg heartbeat_publisher_node > ~/heartbeat.log 2>&1 & echo $! > ~/heartbeat.pid', 'robot_ws');
-                console.log("heartbeat loaded");
+            // Inicia los nodos de heartbeat y diagnostics en segundo plano
+            execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 run health_check_pkg heartbeat_publisher_node > ~/heartbeat.log 2>&1 & echo $! > ~/heartbeat.pid', 'robot_ws');
+            console.log("heartbeat loaded");
 
-                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 run health_check_pkg diagnostics_publisher_node > ~/diagnostics.log 2>&1 & echo $! > ~/diagnostics.pid',  'robot_ws');
-                console.log("diagnostics loaded");
+            execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 run health_check_pkg diagnostics_publisher_node > ~/diagnostics.log 2>&1 & echo $! > ~/diagnostics.pid',  'robot_ws');
+            console.log("diagnostics loaded");
 
-                // Start rosbridge and capture all related PIDs
-                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 launch rosbridge_server rosbridge_websocket_launch.xml > ~/rosbridge.log 2>&1 & echo $! > ~/rosbridge.pid',  'robot_ws');
-                execSshCommand(robot.ip,  privateKeyPath, 'pgrep -P $(cat ~/rosbridge.pid) > ~/rosbridge_children.pids',  'robot_ws');
-                console.log("rosbridge loaded");
+            // Start rosbridge and capture all related PIDs
+            execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 launch rosbridge_server rosbridge_websocket_launch.xml > ~/rosbridge.log 2>&1 & echo $! > ~/rosbridge.pid',  'robot_ws');
+            execSshCommand(robot.ip,  privateKeyPath, 'pgrep -P $(cat ~/rosbridge.pid) > ~/rosbridge_children.pids',  'robot_ws');
+            console.log("rosbridge loaded");
 
-                // Start diffbot and capture all related PIDs
-                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 launch diffdrive_msp432 diffbot.launch.py > ~/diffbot.log 2>&1 & echo $! > ~/diffbot.pid',  'robot_ws');
-                console.log("diffbot loaded");
+            // Start diffbot and capture all related PIDs
+            execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 launch diffdrive_msp432 diffbot.launch.py > ~/diffbot.log 2>&1 & echo $! > ~/diffbot.pid',  'robot_ws');
+            console.log("diffbot loaded");
 
-                // Agregar el robot a la lista de disponibles si todo fue bien
-                availableRobots.push(robot._id);
+            // Agregar el robot a la lista de disponibles si todo fue bien
+            availableRobots.push(robot._id);
 
-                //TODO: actualizar el estado del robot de Disponible a En Uso
+            await robot.updateOne({statusUse: "En Uso"});
 
-            } catch (error) {
-                console.error(`Error configurando el robot ${robot.model} (${robot.ip}):`, error);
-                // Cambia el estado del robot a "Mantenimiento" si no responde
-                await Robot.updateOne({ _id: robot._id }, { statusUse: 'Mantenimiento' });
-            }
-        })();
+        } catch (error) {
+            console.error(`Error while setup the robot: ${robot.model} (${robot.ip}):`, error);
+            // Cambia el estado del robot a "Mantenimiento" si no responde
+            await Robot.updateOne({ _id: robot._id }, { statusUse: 'Mantenimiento' });
+        }
     });
 
-    await Promise.all(robotPromises);
+    try {
+        await Promise.all(robotPromises);
+    } catch (error) {
+        console.error('Error during robot initialization:', error.message);
+        // Handle the case where no robots are available
+        if (availableRobots.length === 0) {
+            throw new Error('Could not communicate with any of the robots.');
+        }
+    }
 
     console.log('Robots disponibles:', availableRobots);
 
