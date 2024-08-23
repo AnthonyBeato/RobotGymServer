@@ -7,22 +7,20 @@ const routineSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    files: [
-        {
-            fileId: {
-                type: mongoose.Schema.Types.ObjectId, // ID de GridFS
-                required: true,
-            },
-            fileName: {
-                type: String,
-                required: true,
-            },
-            fileType: {
-                type: String,
-                required: true
-            }
+    file: {
+        data: {
+            type: Buffer, 
+            required: true,
         },
-    ],
+        fileName: {
+            type: String,
+            required: true,
+        },
+        fileType: {
+            type: String,
+            required: true,
+        }
+    },
     createdAt: {
         type: Date,
         default: Date.now

@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const execSshCommand = require('./helpers/execSshCommand');
 // const fs = require('fs');
 const path = require('path');
+const robotController = require('../controllers/robotController');
 
 // Crear experimento
 exports.createExperiment = async (req, res) => {
@@ -136,6 +137,8 @@ exports.startExperiment = async (req, res) => {
         experiment.robots = availableRobots;
         await experiment.save();
 
+        await robotController.reserveRobots(experiment._id);
+
         console.log('Experimento iniciado exitosamente');
         res.status(200).json({ message: 'Experiment started successfully', experiment });
     } catch (error) {
@@ -155,19 +158,19 @@ async function runManualControl() {
                 console.log(`Iniciando el chequeo de salud para ${robot.model} en ${robot.ip}`);
 
                 // Inicia los nodos de heartbeat y diagnostics en segundo plano
-                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 run health_check_pkg heartbeat_publisher_node > ~/heartbeat.log 2>&1 & echo $! > ~/heartbeat.pid');
+                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 run health_check_pkg heartbeat_publisher_node > ~/heartbeat.log 2>&1 & echo $! > ~/heartbeat.pid', 'robot_ws');
                 console.log("heartbeat loaded");
 
-                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 run health_check_pkg diagnostics_publisher_node > ~/diagnostics.log 2>&1 & echo $! > ~/diagnostics.pid');
+                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 run health_check_pkg diagnostics_publisher_node > ~/diagnostics.log 2>&1 & echo $! > ~/diagnostics.pid',  'robot_ws');
                 console.log("diagnostics loaded");
 
                 // Start rosbridge and capture all related PIDs
-                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 launch rosbridge_server rosbridge_websocket_launch.xml > ~/rosbridge.log 2>&1 & echo $! > ~/rosbridge.pid');
-                execSshCommand(robot.ip, 'robot', privateKeyPath, 'pgrep -P $(cat ~/rosbridge.pid) > ~/rosbridge_children.pids');
+                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 launch rosbridge_server rosbridge_websocket_launch.xml > ~/rosbridge.log 2>&1 & echo $! > ~/rosbridge.pid',  'robot_ws');
+                execSshCommand(robot.ip,  privateKeyPath, 'pgrep -P $(cat ~/rosbridge.pid) > ~/rosbridge_children.pids',  'robot_ws');
                 console.log("rosbridge loaded");
 
                 // Start diffbot and capture all related PIDs
-                execSshCommand(robot.ip, 'robot', privateKeyPath, 'nohup ros2 launch diffdrive_msp432 diffbot.launch.py > ~/diffbot.log 2>&1 & echo $! > ~/diffbot.pid');
+                execSshCommand(robot.ip,  privateKeyPath, 'nohup ros2 launch diffdrive_msp432 diffbot.launch.py > ~/diffbot.log 2>&1 & echo $! > ~/diffbot.pid',  'robot_ws');
                 console.log("diffbot loaded");
 
                 // Agregar el robot a la lista de disponibles si todo fue bien
@@ -217,7 +220,7 @@ exports.stopExperiment = async (req, res) => {
 
         const stopPromises = experiment.robots.map(robot => {
             return Promise.all(stopCommands.map(cmd => 
-                execSshCommand(robot.ip, 'robot', privateKeyPath, cmd)
+                execSshCommand(robot.ip,  privateKeyPath, cmd,  'robot_ws')
                 .then(() => console.log(`Stopped process on ${robot.model} (${robot.ip})`))
                 .catch(err => console.error(`Error stopping process on ${robot.model} (${robot.ip}):`, err))
             ));
@@ -225,7 +228,7 @@ exports.stopExperiment = async (req, res) => {
 
         await Promise.all(stopPromises);
 
-        await Robot.updateMany({ experiment: id }, { statusUse: 'Disponible', experiment: null });
+        await robotController.releaseRobots(experiment._id);
 
         experiment.isActive = false;
         experiment.robots = [];

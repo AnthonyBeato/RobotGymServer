@@ -2,11 +2,12 @@
 const mongoose = require('mongoose');
 const Routine = require('../models/Routine')
 const path = require('path');
-const fs = require('fs');
 // const { Client } = require('node-scp');
 // const { createPythonPackageFiles, createCppPackageFiles } = require('./helpers/packageHelpers');
 const execSshCommand = require('./helpers/execSshCommand');
-const transferFilesToRobot = require('./helpers/transferFilesToRobot');
+const transferRoutineFilesToOrchestrator = require('./helpers/transferRoutineFilesToOrchestrator');
+const Robot = require('../models/robot');
+const robotController = require('../controllers/robotController');
 
 // Leer rutinas
 exports.getRoutines = async (req, res) => {
@@ -35,65 +36,33 @@ exports.uploadRoutineFiles = async (req, res) => {
     try {
         const { experimentId } = req.body;
         // const user = req.user;
-        const files = req.files; // Array of uploaded files
+        const file = req.file;
         
         // Verificar que experimentId es un ObjectId válido
         if (!mongoose.Types.ObjectId.isValid(experimentId)) {
             return res.status(400).json({ message: 'Invalid experiment ID' });
         }
 
-        if (!files || files.length === 0) {
+        if (!file) {
             return res.status(400).json({ message: 'No files uploaded' });
         }
         
         console.log('Experiment ID:', experimentId);
-        console.log('Files received:', files);
+        console.log('File received:', file);
 
-        const uploadedFiles = [];
-        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-            bucketName: 'routineFiles'
-        });
 
-        // Procesar cada archivo subido
-        for (const file of files) {
-            try {
-                console.log('Processing file:', file.originalname);
-                
-                const fileType = path.extname(file.originalname);
+        console.log('Experiment ID:', experimentId);
+        console.log('File received:', file);
 
-                // Guardar archivo en GridFS
-                console.log('Saving file to GridFS:', file.originalname);
-                const uploadStream = bucket.openUploadStream(file.originalname);
-                fs.createReadStream(file.path).pipe(uploadStream);
-
-                await new Promise((resolve, reject) => {
-                    uploadStream.on('finish', () => {
-                        console.log('File saved to GridFS:', file.originalname);
-                        uploadedFiles.push({
-                            fileId: uploadStream.id,
-                            fileName: file.originalname,
-                            fileType: fileType,
-                        });
-                        resolve();
-                    });
-                    uploadStream.on('error', (error) => {
-                        console.error('Error saving file to GridFS:', error);
-                        reject(error);
-                    });
-                });
-
-            } catch (fileError) {
-                console.error('Error processing file:', file.originalname, fileError);
-                return res.status(500).json({ message: `Error processing file ${file.originalname}`, error: fileError.message });
-            }
-        }
-
-        // Crear la rutina en la base de datos
         const routine = new Routine({
-            name: files[0].originalname,
-            files: uploadedFiles,
+            name: file.originalname,
+            file: {
+                data: file.buffer, 
+                fileName: file.originalname,
+                fileType: file.mimetype,
+            },
             experiment: experimentId,
-            status: 'Borrador'
+            status: 'Borrador',
         });
 
         await routine.save();
@@ -108,7 +77,6 @@ exports.uploadRoutineFiles = async (req, res) => {
 };
 
 
-
 // Distribuir los archivos a las RPI4 de los robots y ejecutar la rutina
 exports.runRoutine = async (req, res) => {
     try {
@@ -120,29 +88,63 @@ exports.runRoutine = async (req, res) => {
             console.log('Routine not found');
             return res.status(404).json({ message: 'Routine not found' });
         }
-
-        const robotIps = ['192.168.1.114', 'rpirobot2']; // IPs de las RPI4 de los robots
-        // const packageName = routine.files[0].fileType === '.py' ? `${req.user.username}_py` : `${req.user.username}_cpp`;
-        // cosnt
+        const privateKeyPath = path.join(process.env.HOME, '.ssh', 'id_rsa');
         const packageName = `${req.user.username}_pkg`;
-        
-        // Transferir los archivos a todos los robots
-        await Promise.all(robotIps.map(async (ip) => {
-            await transferFilesToRobot(ip, packageName, routine.files);
-        }));
 
-        // Ejecutar las rutinas en paralelo
-        const executionPromises = robotIps.map(async (ip) => {
-            return execSshCommand(ip, 'robot', path.join(process.env.HOME, '.ssh', 'id_rsa'), `ros2 run ${packageName} ${routine.files[0].fileName}`);
-        });
+        await transferRoutineFilesToOrchestrator(packageName, routine.file);
 
-        // Esperar a que todos los robots terminen de ejecutar la rutina
-        await Promise.all(executionPromises);
+        // Ejecutar rutina en la orquestadora
+        const orchestratorIP = '192.168.1.116'; 
+        await execSshCommand(orchestratorIP, 'orquestadora', privateKeyPath, `cd ros2_ws && ros2 run ${packageName} ${routine.file.fileName}`, 'ros2_ws');
+        console.log('se completó la ejecución de la rutina');
+
+        await routine.updateOne({status: 'Ejecutandose'});
 
         res.status(200).json({ message: 'Routine executed successfully on all robots' });
 
     } catch (error) {
         console.error('Error in runRoutine:', error);
         res.status(500).json({ message: 'Error executing routine', error: error.message });
+    }
+};
+
+exports.stopRoutine = async (req, res) => {
+    try {
+        const { experimentId } = req.body;
+
+        const routine = await Routine.findOne({ experiment: experimentId, status: 'Ejecutandose' });
+        if (!routine) {
+            return res.status(404).json({ message: 'No active routine found for this experiment' });
+        }
+
+        const privateKeyPath = path.join(process.env.HOME, '.ssh', 'id_rsa');
+        const orchestratorIP = '192.168.1.116';
+        
+        // Detener la rutina en la orquestadora
+        console.log(`Stopping routine on orchestrator for experiment ${experimentId}`);
+        await execSshCommand(orchestratorIP, 'orquestadora', privateKeyPath, `pkill -f ${routine.name}`, 'ros2_ws');
+
+        // Asegurar que todos los robots estén detenidos
+        const robots = await Robot.find({ statusUse: 'Disponible' });
+
+        const stopPromises = robots.map(async (robot) => {
+            const robotNumber = robotController.getRobotNumber(robot.hostname);
+            if (!robotNumber) {
+                throw new Error(`Could not extract robot number from hostname: ${robot.hostname}`);
+            }
+
+            const stopCommand = `rostopic pub /robot_${robotNumber}/diffbot_base_controller/cmd_vel_unstamped geometry_msgs/Twist -r 10 -- '[0.0, 0.0, 0.0]' '[0.0, 0.0, 0.0]'`;
+            await execSshCommand(robot.ip, privateKeyPath, stopCommand, 'robot_ws');
+            console.log(`Stop command sent to robot_${robotNumber} at ${robot.ip}`);
+        });
+
+        await Promise.all(stopPromises);
+
+        console.log('All robots have been stopped.');
+        res.status(200).json({ message: 'Routine stopped successfully, all robots are now stationary' });
+
+    } catch (error) {
+        console.error('Error stopping routine:', error);
+        res.status(500).json({ message: 'Error stopping routine', error: error.message });
     }
 };

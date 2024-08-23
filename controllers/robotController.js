@@ -1,6 +1,6 @@
 const Robot = require('../models/robot');
 const mongoose = require('mongoose');
-
+const Experiment = require('../models/Experiment');
 
 // Obtener todos los robots
 exports.getAllRobots = async (req, res) => {
@@ -71,16 +71,26 @@ exports.updateRobotStatus = async (req, res) => {
 // Funcion para reservar robots para un experimento
 exports.reserveRobots = async (experimentId) => {
     try {
-        // Conseguir todos los robots disponibles
-        const availableRobots = await this.getAllAvailableRobots();
-
-        // Seleccionar los robots necesarios
-        const robotIds = availableRobots.map(robot => robot._id);
+        const experiment = await Experiment.findById(experimentId).populate('robots');
 
         // Poner cada robot en estado "En Uso" 
-        await Robot.updateMany({ _id: { $in: robotIds } }, { statusUse: 'En Uso', experiment: experimentId });
+        await Robot.updateMany({ _id: { $in: experiment.robots } }, { statusUse: 'En Uso', experiment: experimentId });
 
-        return robotIds;
+        return experiment.robots;
+    } catch (error) {
+        throw new Error('Error retrieving robots: ' + error.message);
+    }
+};
+
+// Funcion para liberar robots de un experimento
+exports.releaseRobots = async (experimentId) => {
+    try {
+        const experiment = await Experiment.findById(experimentId).populate('robots');
+
+        // Poner cada robot en estado "Disponible" 
+        await Robot.updateMany({ _id: { $in: experiment.robots } }, { statusUse: 'Disponible', experiment: null });
+
+        return experiment.robots;
     } catch (error) {
         throw new Error('Error retrieving robots: ' + error.message);
     }
@@ -147,4 +157,10 @@ exports.deleteRobot = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Error deleting robot', error: error.message });
     }
+};
+
+// Conseguir robot number dado su hostname de la RPI
+exports.getRobotNumber = (hostname) => {
+    const match = hostname.match(/\d+/);
+    return match ? match[0] : null;
 };
