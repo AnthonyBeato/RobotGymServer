@@ -1,8 +1,8 @@
 const User = require('../models/user')
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const Experiment = require('../models/Experiment');
+const { generateAccessToken, generateRefreshToken } = require('../services/tokenService'); 
 
 exports.createUser = async (req, res) => {
     try {
@@ -38,15 +38,15 @@ exports.loginUser = async (req, res) => {
             return res.status(401).json({ message: 'Authentication failed' });
         }
 
-        const token = jwt.sign(
-            { userId: user._id, username: user.username, role: user.role, aprobationStatus: user.aprobationStatus },
-            process.env.JWT_SECRET,
-            { expiresIn: '6h' }
-        );
+        // Genera el access token
+        const accessToken = generateAccessToken(user); 
+        // Genera y guarda el refresh token
+        const refreshToken = await generateRefreshToken(user); 
 
         res.status(200).json({
             message: 'Authentication successful',
-            token: token,
+            accessToken: accessToken, 
+            refreshToken: refreshToken.token, 
             userId: user._id
         });
     } catch (error) {
