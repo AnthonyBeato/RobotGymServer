@@ -104,7 +104,8 @@ exports.deleteExperiment = async (req, res) => {
         res.status(500).json({ message: 'Error deleting experiment', error: error.message });
     }
 };
-
+// Almacenar temporizadores por experiment ID
+const timers = {};
 // Iniciar experimento
 exports.startExperiment = async (req, res) => {
     try {
@@ -138,10 +139,20 @@ exports.startExperiment = async (req, res) => {
             }
             // Actualizar el experimento para reflejar que está activo y asignarle los robots
             experiment.isActive = true;
+            experiment.startTime = Date.now(); 
             experiment.robots = availableRobots;
             await experiment.save();
     
             await robotController.reserveRobots(experiment._id);
+
+            // Iniciando un timer de 2 horas
+            if (timers[id]) {
+                clearTimeout(timers[id]);
+            }
+            timers[id] = setTimeout(async () => {
+                await exports.stopExperiment({ params: { id } }, res);
+                console.log(`Experiment ${id} stopped after 2 hours`);
+            }, 2 * 60 * 60 * 1000); // 2 horas en milisegundos
     
             console.log('Experiment started successfully');
             res.status(200).json({ message: 'Experiment started successfully', experiment });
@@ -220,6 +231,12 @@ exports.stopExperiment = async (req, res) => {
 
         if (!experiment.isActive) {
             return res.status(400).json({ message: 'Experiment is not active' });
+        }
+
+        // Limpiar el timer si existe
+        if (timers[id]) {
+            clearTimeout(timers[id]);
+            delete timers[id];
         }
 
         const privateKeyPath = path.join(process.env.HOME, '.ssh', 'id_rsa');

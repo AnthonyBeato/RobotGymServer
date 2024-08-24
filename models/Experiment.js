@@ -22,6 +22,10 @@ const experimentSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: false,
+    },
+    startTime: {
+        type: Date, 
+        default: Date.now,
     }
 });
 

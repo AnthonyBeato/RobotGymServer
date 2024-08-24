@@ -11,7 +11,7 @@ router.get('/', userController.getAllUsers);
 router.post('/login', userController.loginUser);
 
 // Ruta para registrar usuario
-router.post('/register', userController.createUser);
+router.post('/register', userController.registerUser);
 
 // Ruta para crear un nuevo usuario
 router.post('/create-user', passport.authenticate('jwt', { session: false }), userController.createUser);

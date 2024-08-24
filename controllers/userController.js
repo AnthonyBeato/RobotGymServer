@@ -25,6 +25,34 @@ exports.createUser = async (req, res) => {
     }
 };
 
+
+exports.registerUser = async (req, res) => {
+    try {
+        const { name, email, username, password, role, aprobationStatus } = req.body;
+        if (!email || !name || !username || !password || !role || !aprobationStatus) {
+            return res.status(400).json({ message: 'Please provide all required fields' });
+        }
+
+        // Validar que el rol solo sea "Profesor" o "Estudiante"
+        if (role !== 'Profesor' && role !== 'Estudiante') {
+            return res.status(400).json({ message: 'Role must be either "Profesor" or "Estudiante"' });
+        }
+
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            return res.status(409).json({ message: 'Email already in use' });
+        }
+
+        const user = new User({ name, username, email, password, role, experiments: [] , aprobationStatus });
+        await user.save();
+
+        res.status(201).json({ message: 'User created successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating user', error: error.message });
+    }
+};
+
+
 exports.loginUser = async (req, res) => {
     try {
         const { username, password } = req.body;
