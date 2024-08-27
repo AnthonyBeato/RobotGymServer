@@ -4,7 +4,7 @@ const Routine = require('../models/Routine')
 const path = require('path');
 // const { Client } = require('node-scp');
 // const { createPythonPackageFiles, createCppPackageFiles } = require('./helpers/packageHelpers');
-const execSshCommand = require('./helpers/execSshCommand');
+const execSshRosCommand = require('./helpers/execSshRosCommand');
 const transferRoutineFilesToOrchestrator = require('./helpers/transferRoutineFilesToOrchestrator');
 const Robot = require('../models/robot');
 const robotController = require('../controllers/robotController');
@@ -93,12 +93,13 @@ exports.runRoutine = async (req, res) => {
 
         await transferRoutineFilesToOrchestrator(packageName, routine.file);
 
+        await routine.updateOne({status: 'Ejecutandose'});
+
         // Ejecutar rutina en la orquestadora
-        const orchestratorIP = '192.168.1.116'; 
-        await execSshCommand(orchestratorIP, 'orquestadora', privateKeyPath, `cd ros2_ws && ros2 run ${packageName} ${routine.file.fileName}`, 'ros2_ws');
+        const orchestratorIP = 'rpiorquestadora'; 
+        await execSshRosCommand(orchestratorIP, 'orquestadora', privateKeyPath, `cd ros2_ws && nohup ros2 run ${packageName} ${routine.file.fileName} > ~/routine.log 2>&1 & echo $! > ~/routine.pid`, 'ros2_ws');
         console.log('se completó la ejecución de la rutina');
 
-        await routine.updateOne({status: 'Ejecutandose'});
 
         res.status(200).json({ message: 'Routine executed successfully on all robots' });
 
@@ -118,11 +119,11 @@ exports.stopRoutine = async (req, res) => {
         }
 
         const privateKeyPath = path.join(process.env.HOME, '.ssh', 'id_rsa');
-        const orchestratorIP = '192.168.1.116';
+        const orchestratorIP = 'rpiorquestadora';
         
-        // Detener la rutina en la orquestadora
+        // Detener la rutina en la orquestadora usando el PID
         console.log(`Stopping routine on orchestrator for experiment ${experimentId}`);
-        await execSshCommand(orchestratorIP, 'orquestadora', privateKeyPath, `pkill -f ${routine.name}`, 'ros2_ws');
+        await execSshRosCommand(orchestratorIP, 'orquestadora', privateKeyPath, `(kill -9 $(cat ~/routine.pid) && rm ~/routine.pid) &`, 'ros2_ws');
 
         // Asegurar que todos los robots estén detenidos
         const robots = await Robot.find({ statusUse: 'Disponible' });
@@ -133,8 +134,8 @@ exports.stopRoutine = async (req, res) => {
                 throw new Error(`Could not extract robot number from hostname: ${robot.hostname}`);
             }
 
-            const stopCommand = `rostopic pub /robot_${robotNumber}/diffbot_base_controller/cmd_vel_unstamped geometry_msgs/Twist -r 10 -- '[0.0, 0.0, 0.0]' '[0.0, 0.0, 0.0]'`;
-            await execSshCommand(robot.ip, privateKeyPath, stopCommand, 'robot_ws');
+            const stopCommand = `cd ros2_ws && nohup ros2 run robot_routine_management_pkg > ~/stop.log 2>&1 & echo $! > ~/stop.pid`;
+            await execSshRosCommand(robot.ip, 'robot', privateKeyPath, stopCommand, 'robot_ws');
             console.log(`Stop command sent to robot_${robotNumber} at ${robot.ip}`);
         });
 

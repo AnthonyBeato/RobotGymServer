@@ -1,8 +1,8 @@
 const { exec } = require('child_process');
 
-const execSshRosCommand = (host, username, privateKeyPath, command) => {
+const execSshRosCommand = (host, username, privateKeyPath, command, rosWorkspaceName) => {
     return new Promise((resolve) => {
-        const sshCommand = `ssh -i ${privateKeyPath} ${username}@${host} "${command}"`;
+        const sshCommand = `ssh -i ${privateKeyPath} ${username}@${host} "source /opt/ros/humble/setup.bash && source /home/${username}/${rosWorkspaceName}/install/setup.bash && ${command}"`;
         exec(sshCommand, (error, stdout, stderr) => {
             if (error) {
                 console.error(`Error executing SSH command: ${sshCommand}`);

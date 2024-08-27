@@ -1,18 +1,18 @@
 const { Client } = require('node-scp');
 const fs = require('fs');
 const path = require('path');
-const execSshCommand = require('./execSshCommand');
+const execSshCommand = require('./execSshRosCommand');
 const os = require('os');
 
 async function transferRoutineFilesToOrchestrator(packageName, routineFile) {
-    const orchestratorIP = '192.168.1.116'; 
+    const orchestratorIP = 'rpiorquestadora'; 
     const privateKeyPath = path.join(process.env.HOME, '.ssh', 'id_rsa');
 
     try {
         // 1. Crear el paquete en la orquestadora si no existe
         console.log(`Creating package on orchestrator: ${packageName}`);
         await execSshCommand(orchestratorIP, 'orquestadora', privateKeyPath, 
-        `cd /home/orquestadora/ros2_ws/src && ros2 pkg create --build-type ament_cmake ${packageName} && mkdir -p ${packageName}/scripts && mkdir -p ${packageName}/${packageName}`, 'ros2_ws');
+        `rm -rf /home/orquestadora/ros2_ws/src/${packageName} && cd /home/orquestadora/ros2_ws/src && ros2 pkg create --build-type ament_cmake ${packageName} && mkdir -p ${packageName}/scripts && mkdir -p ${packageName}/${packageName}`, 'ros2_ws');
 
         // 2. Transferir el archivo de la rutina al paquete en la orquestadora
         console.log(`Transferring files to orchestrator`);

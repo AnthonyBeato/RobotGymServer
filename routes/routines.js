@@ -21,7 +21,7 @@ router.post('/upload', passport.authenticate('jwt', { session: false }), upload.
 router.post('/run/:id', passport.authenticate('jwt', {session: false}), routineController.runRoutine);
 
 // Ruta para detener una rutina específica 
-router.post('/stopRoutine', passport.authenticate('jwt', { session: false }), routineController.stopRoutine);
+router.post('/stop-routine', passport.authenticate('jwt', { session: false }), routineController.stopRoutine);
 
 
 module.exports = router;
