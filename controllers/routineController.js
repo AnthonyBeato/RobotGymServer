@@ -123,7 +123,7 @@ exports.stopRoutine = async (req, res) => {
         
         // Detener la rutina en la orquestadora usando el PID
         console.log(`Stopping routine on orchestrator for experiment ${experimentId}`);
-        await execSshRosCommand(orchestratorIP, 'orquestadora', privateKeyPath, `(kill -9 $(cat ~/routine.pid) && rm ~/routine.pid) &`, 'ros2_ws');
+        await execSshRosCommand(orchestratorIP, 'orquestadora', privateKeyPath, `(kill -9 $(cat ~/${routine.file.fileName}.pid) && rm ~/${routine.file.fileName}.pid) &`, 'ros2_ws');
 
         // Asegurar que todos los robots estén detenidos
         const robots = await Robot.find({ statusUse: 'Disponible' });
@@ -134,7 +134,7 @@ exports.stopRoutine = async (req, res) => {
                 throw new Error(`Could not extract robot number from hostname: ${robot.hostname}`);
             }
 
-            const stopCommand = `cd ros2_ws && nohup ros2 run robot_routine_management_pkg > ~/stop.log 2>&1 & echo $! > ~/stop.pid`;
+            const stopCommand = `cd robot_ws && nohup ros2 run robot_routine_management_pkg stop_robot_node > ~/stop.log 2>&1 & echo $! > ~/stop.pid`;
             await execSshRosCommand(robot.ip, 'robot', privateKeyPath, stopCommand, 'robot_ws');
             console.log(`Stop command sent to robot_${robotNumber} at ${robot.ip}`);
         });
